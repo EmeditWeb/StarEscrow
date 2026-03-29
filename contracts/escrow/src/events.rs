@@ -1,4 +1,4 @@
-use soroban_sdk::{symbol_short, Address, Env, String, Vec, symbol};
+use soroban_sdk::{symbol_short, Address, Env, String, Vec};
 use crate::storage::Milestone;
 
 pub fn contract_paused(env: Env, admin: Address) {

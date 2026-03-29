@@ -45,7 +45,7 @@ impl EscrowContract {
         let mut config = storage::load_config(&env);
         config.admin.require_auth();
         config.paused = true;
-        events::contract_paused(&env, &config.admin);
+        events::contract_paused(env.clone(), config.admin.clone());
         storage::save_config(&env, &config);
         storage::extend_ttl(&env);
         Ok(())
@@ -56,7 +56,7 @@ impl EscrowContract {
         let mut config = storage::load_config(&env);
         config.admin.require_auth();
         config.paused = false;
-        events::contract_unpaused(&env, &config.admin);
+        events::contract_unpaused(env.clone(), config.admin.clone());
         storage::save_config(&env, &config);
         storage::extend_ttl(&env);
         Ok(())
@@ -129,13 +129,13 @@ impl EscrowContract {
         if let Some(ref protocol) = data.yield_protocol {
             let yield_client = YieldProtocolClient::new(&env, protocol);
             yield_client.deposit(&total_amount);
-            events::yield_deposited(&env, protocol, total_amount);
+            events::yield_deposited(env.clone(), protocol.clone(), total_amount);
             data.principal_deposited = total_amount;
         }
 
         storage::save_escrow(&env, &data);
         nft::mint(&env, &payer);
-        events::escrow_created(&env, &payer, &freelancer, &total_amount, &milestones);
+        events::escrow_created(env.clone(), payer.clone(), freelancer.clone(), total_amount, milestones);
         storage::extend_ttl(&env);
         Ok(())
     }
@@ -212,12 +212,12 @@ impl EscrowContract {
         if let Some(ref protocol) = data.yield_protocol {
             let yield_client = YieldProtocolClient::new(&env, protocol);
             yield_client.deposit(&amount);
-            events::yield_deposited(&env, protocol, amount);
+            events::yield_deposited(env.clone(), protocol.clone(), amount);
             data.principal_deposited = amount;
         }
 
         storage::save_escrow(&env, &data);
-        events::escrow_created(&env, &payer, &freelancer, &amount, &milestones);
+        events::escrow_created(env.clone(), payer.clone(), freelancer.clone(), amount, milestones);
         storage::extend_ttl(&env);
         Ok(())
     }
@@ -245,7 +245,7 @@ impl EscrowContract {
             data.status = storage::EscrowStatus::WorkSubmitted;
         }
         storage::save_escrow(&env, &data);
-        events::milestone_submitted(&env, &data.freelancer, milestone_idx, &description);
+        events::milestone_submitted(env.clone(), data.freelancer.clone(), milestone_idx, description);
         storage::extend_ttl(&env);
         Ok(())
     }
@@ -280,7 +280,7 @@ impl EscrowContract {
         };
 
         client.transfer(&env.current_contract_address(), &data.freelancer, &net_amount);
-        events::milestone_approved(&env, &data.freelancer, milestone_idx, &description, net_amount);
+        events::milestone_approved(env.clone(), data.freelancer.clone(), milestone_idx, description, net_amount);
         milestone.status = storage::MilestoneStatus::Approved;
         data.milestones.set(milestone_idx, milestone);
 
@@ -306,7 +306,7 @@ impl EscrowContract {
         }
         data.status = storage::EscrowStatus::Disputed;
         storage::save_escrow(&env, &data);
-        events::dispute_raised(&env, &caller);
+        events::dispute_raised(env.clone(), caller.clone());
         storage::extend_ttl(&env);
         Ok(())
     }
@@ -327,7 +327,7 @@ impl EscrowContract {
         Self::withdraw_remaining_funds(&env, &mut data, release_to.clone())?;
         data.status = storage::EscrowStatus::Resolved;
         storage::save_escrow(&env, &data);
-        events::dispute_resolved(&env, &release_to);
+        events::dispute_resolved(env.clone(), release_to.clone());
         storage::extend_ttl(&env);
         Ok(())
     }
@@ -369,11 +369,11 @@ impl EscrowContract {
         data.releases_made += 1;
         data.last_release_time = now;
 
-        events::recurring_released(&env, &data.freelancer, release_amount, data.releases_made);
+        events::recurring_released(env.clone(), data.freelancer.clone(), release_amount, data.releases_made);
 
         if data.releases_made >= data.recurrence_count {
             data.status = EscrowStatus::Completed;
-            events::payment_released(&env, &data.freelancer, release_amount);
+            events::payment_released(env.clone(), data.freelancer.clone(), release_amount);
         }
 
         storage::save_escrow(&env, &data);
@@ -401,7 +401,7 @@ impl EscrowContract {
         let client = token::Client::new(&env, &data.token);
         client.transfer(&env.current_contract_address(), &data.payer, &remaining);
 
-        events::escrow_cancelled(&env, &data.payer, remaining);
+        events::escrow_cancelled(env.clone(), data.payer.clone(), remaining);
         data.status = EscrowStatus::Cancelled;
         storage::save_escrow(&env, &data);
         storage::extend_ttl(&env);
@@ -439,7 +439,7 @@ impl EscrowContract {
         let client = token::Client::new(&env, &data.token);
         client.transfer(&env.current_contract_address(), &data.payer, &remaining);
 
-        events::escrow_expired(&env, &data.payer, remaining);
+        events::escrow_expired(env.clone(), data.payer.clone(), remaining);
         data.status = EscrowStatus::Expired;
         storage::save_escrow(&env, &data);
         storage::extend_ttl(&env);
@@ -453,7 +453,7 @@ impl EscrowContract {
         let old = data.freelancer.clone();
         data.freelancer = new_freelancer.clone();
         storage::save_escrow(&env, &data);
-        events::freelancer_transferred(&env, &old, &new_freelancer);
+        events::freelancer_transferred(env.clone(), old, new_freelancer);
         storage::extend_ttl(&env);
         Ok(())
     }
@@ -465,7 +465,7 @@ impl EscrowContract {
         let old = data.payer.clone();
         data.payer = new_payer.clone();
         storage::save_escrow(&env, &data);
-        events::payer_transferred(&env, &old, &new_payer);
+        events::payer_transferred(env.clone(), old, new_payer);
         storage::extend_ttl(&env);
         Ok(())
     }
@@ -495,7 +495,7 @@ impl EscrowContract {
         let old_deadline = current;
         data.deadline = Some(new_deadline);
         storage::save_escrow(&env, &data);
-        events::deadline_extended(&env, old_deadline, new_deadline);
+        events::deadline_extended(env.clone(), old_deadline, new_deadline);
         storage::extend_ttl(&env);
         Ok(())
     }
@@ -512,7 +512,7 @@ impl EscrowContract {
         milestone.description = new_milestone.clone();
         data.milestones.set(0, milestone);
         storage::save_escrow(&env, &data);
-        events::milestone_updated(&env, &old, &new_milestone);
+        events::milestone_updated(env.clone(), old, new_milestone);
         storage::extend_ttl(&env);
         Ok(())
     }
@@ -608,11 +608,16 @@ pub struct GovParamChange {
     pub value: String,
 }
 
-fn parse_u32_from_string(env: &Env, s: &String) -> Option<u32> {
+fn parse_u32_from_string(_env: &Env, s: &String) -> Option<u32> {
     let mut result = 0u32;
-    let bytes = s.to_array();
-    if bytes.is_empty() { return None; }
-    for byte in bytes.iter() {
+    let len = s.len() as usize;
+    if len == 0 || len > 10 { return None; }
+    
+    let mut buf = [0u8; 10];
+    s.copy_into_slice(&mut buf[..len]);
+    
+    for i in 0..len {
+        let byte = buf[i];
         if byte < b'0' || byte > b'9' { return None; }
         result = result.checked_mul(10)?.checked_add((byte - b'0') as u32)?;
     }

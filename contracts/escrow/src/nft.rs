@@ -53,5 +53,5 @@ pub fn transfer(env: &Env, to: &Address) {
     data.payer = to.clone();
     storage::save_escrow(env, &data);
 
-    crate::events::payer_transferred(env, &old_payer, to);
+    crate::events::payer_transferred(env.clone(), old_payer, to.clone());
 }
