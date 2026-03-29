@@ -1,0 +1,28 @@
+specVersion: "1.0.0"
+name: "starescrow-indexer"
+version: "0.0.1"
+runner:
+  node:
+    name: "@subql/node-stellar"
+    version: "*"
+description: "Indexer for StarEscrow contract events."
+network:
+  endpoint: "https://soroban-testnet.stellar.org" # Testnet
+  passphrase: "Test SDF Network ; September 2015"
+
+dataSources:
+  - kind: stellar/SorobanContract
+    startBlock: 1234567 # Replace with deployment ledger
+    mapping:
+      file: "./src/mappings/mapping.rs"
+      handlers:
+        - handler: handleEscrowCreated
+          kind: stellar/SorobanEvent
+          filter:
+            topics:
+              - "escrow_created"
+        - handler: handleMilestoneApproved
+          kind: stellar/SorobanEvent
+          filter:
+            topics:
+              - "milestone_approved"

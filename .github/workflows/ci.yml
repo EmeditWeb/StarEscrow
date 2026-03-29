@@ -2,27 +2,27 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
 
-    - name: Cargo build
-      run: cargo build --workspace
+      - name: Cargo build
+        run: cargo build --workspace
 
-    - name: Cargo clippy
-      run: cargo clippy --workspace -- -D warnings
+      - name: Cargo clippy
+        run: cargo clippy --workspace -- -D warnings
 
-    - name: Cargo fmt
-      run: cargo fmt --check --workspace
+      - name: Cargo fmt
+        run: cargo fmt --check --workspace
 
     - name: Cargo test
       run: cargo test --workspace
