@@ -2,9 +2,17 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sha2::{Sha256, Digest};
 use stellar_strkey::{ed25519, Strkey};
 use ed25519_dalek::SigningKey;
+use tabled::{Table, Tabled};
+
+mod deadline;
+mod keypair;
+mod keystore;
+mod native_xdr;
+mod rpc;
+mod wasm_hash;
+mod xdr;
 
 /// StarEscrow CLI — interact with the escrow contract on Stellar Testnet.
 ///
@@ -236,6 +244,38 @@ enum Commands {
         #[arg(long)]
         local_only: bool,
     },
+
+    /// Manage keypairs stored in the OS keychain (issue #142)
+    Keypair {
+        #[command(subcommand)]
+        action: KeypairAction,
+    },
+}
+
+/// Subcommands for `keypair`.
+#[derive(Subcommand)]
+enum KeypairAction {
+    /// Store a secret key in the OS keychain
+    Store {
+        /// Logical name for the key (e.g. "payer", "freelancer")
+        #[arg(long)]
+        name: String,
+        /// The Stellar secret key (S...) to store
+        #[arg(long)]
+        secret: String,
+    },
+    /// Retrieve a secret key from the OS keychain
+    Get {
+        /// Logical name of the key to retrieve
+        #[arg(long)]
+        name: String,
+    },
+    /// Delete a secret key from the OS keychain
+    Delete {
+        /// Logical name of the key to delete
+        #[arg(long)]
+        name: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -376,27 +416,8 @@ fn main() -> Result<()> {
         Commands::SubmitWork { contract_id, freelancer_secret } => {
             invoke_stellar_cli(&rpc_url, &network_passphrase, &contract_id, &freelancer_secret, "submit_work", &[])?;
             output(as_json, json!({"status":"ok","action":"submit_work"}), "Work submitted. Waiting for payer approval.");
-        }
-        Commands::TransferFreelancer { contract_id, freelancer_secret, new_freelancer } => {
-            invoke_stellar_cli(
-                &rpc_url,
-                &network_passphrase,
-                &contract_id,
-                &freelancer_secret,
-                "submit_work",
-                &[],
-            )?;
-            output(
-                as_json,
-                json!({"status":"ok","action":"submit_work"}),
-                "Work submitted. Waiting for payer approval.",
-            );
         },
-        Commands::TransferFreelancer {
-            contract_id,
-            freelancer_secret,
-            new_freelancer,
-        } => {
+        Commands::TransferFreelancer { contract_id, freelancer_secret, new_freelancer } => {
             invoke_stellar_cli(
                 &rpc_url,
                 &network_passphrase,
@@ -411,67 +432,23 @@ fn main() -> Result<()> {
                 &format!("Freelancer role transferred to {new_freelancer}."),
             );
         },
-        Commands::Approve {
-            contract_id,
-            payer_secret,
-        } => {
-            invoke_stellar_cli(
-                &rpc_url,
-                &network_passphrase,
-                &contract_id,
-                &payer_secret,
-                "approve",
-                &[],
-            )?;
-            output(
-                as_json,
-                json!({"status":"ok","action":"approve"}),
-                "Payment released to freelancer.",
-            );
+        Commands::Approve { contract_id, payer_secret } => {
+            invoke_stellar_cli(&rpc_url, &network_passphrase, &contract_id, &payer_secret, "approve", &[])?;
+            output(as_json, json!({"status":"ok","action":"approve"}), "Payment released to freelancer.");
         },
-        Commands::Cancel {
-            contract_id,
-            payer_secret,
-        } => {
-            invoke_stellar_cli(
-                &rpc_url,
-                &network_passphrase,
-                &contract_id,
-                &payer_secret,
-                "cancel",
-                &[],
-            )?;
-            output(
-                as_json,
-                json!({"status":"ok","action":"cancel"}),
-                "Escrow cancelled. Funds refunded to payer.",
-            );
+        Commands::Cancel { contract_id, payer_secret } => {
+            invoke_stellar_cli(&rpc_url, &network_passphrase, &contract_id, &payer_secret, "cancel", &[])?;
+            output(as_json, json!({"status":"ok","action":"cancel"}), "Escrow cancelled. Funds refunded to payer.");
         },
-        Commands::Expire {
-            contract_id,
-            payer_secret,
-        } => {
-            invoke_stellar_cli(
-                &rpc_url,
-                &network_passphrase,
-                &contract_id,
-                &payer_secret,
-                "expire",
-                &[],
-            )?;
-            output(
-                as_json,
-                json!({"status":"ok","action":"expire"}),
-                "Escrow expired. Funds returned to payer.",
-            );
+        Commands::Expire { contract_id, payer_secret } => {
+            invoke_stellar_cli(&rpc_url, &network_passphrase, &contract_id, &payer_secret, "expire", &[])?;
+            output(as_json, json!({"status":"ok","action":"expire"}), "Escrow expired. Funds returned to payer.");
         },
-        Commands::Status { contract_id } => {
+        // Issue #149: tabular output for status
+        Commands::Status { contract_id, token } => {
             let raw = query_contract(&rpc_url, &network_passphrase, &contract_id, "get_escrow")?;
             let balance: Option<String> = if let Some(ref tok) = token {
-                let bal_raw = query_contract_with_args(
-                    &rpc_url, &network_passphrase, &contract_id,
-                    "get_balance", &["--token", tok],
-                )?;
+                let bal_raw = query_contract(&rpc_url, &network_passphrase, tok, "balance")?;
                 Some(bal_raw.trim().to_string())
             } else {
                 None
@@ -479,34 +456,52 @@ fn main() -> Result<()> {
             if as_json {
                 let parsed: Value = serde_json::from_str(raw.trim())
                     .unwrap_or(Value::String(raw.trim().to_string()));
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&json!({"status":"ok","escrow":parsed}))?
-                );
+                println!("{}", serde_json::to_string_pretty(&json!({"status":"ok","escrow":parsed}))?);
             } else {
-                println!("{}", raw.trim());
-                if let Some(bal) = balance {
-                    println!("balance: {bal}");
-                }
+                print_status_table(raw.trim(), balance.as_deref());
             }
         },
+        // Issue #149: tabular output for list
         Commands::List { contract_id, payer } => {
             list_escrows(&rpc_url, &network_passphrase, &contract_id, &payer, as_json)?;
         },
-
-        Commands::Deploy {
-            wasm,
-            deployer_secret,
-            env_file,
-        } => {
-            deploy_contract(
-                &rpc_url,
-                &network_passphrase,
-                wasm.as_deref(),
-                &deployer_secret,
-                &env_file,
-                as_json,
-            )?;
+        Commands::Deploy { wasm, deployer_secret, env_file } => {
+            deploy_contract(&rpc_url, &network_passphrase, wasm.as_deref(), &deployer_secret, &env_file, as_json)?;
+        },
+        Commands::Verify { contract_id, wasm, local_only } => {
+            let local_hash = wasm_hash::hash_wasm_file(&wasm)?;
+            if local_only {
+                output(as_json, json!({"local_hash": local_hash}), &format!("Local hash: {local_hash}"));
+            } else {
+                let remote_hash = fetch_remote_wasm_hash(&rpc_url, &network_passphrase, &contract_id)?;
+                let matches = local_hash == remote_hash;
+                output(
+                    as_json,
+                    json!({"local_hash": local_hash, "remote_hash": remote_hash, "match": matches}),
+                    &format!("Local:  {local_hash}\nRemote: {remote_hash}\nMatch:  {matches}"),
+                );
+            }
+        },
+        // Issue #142: keypair keychain management
+        Commands::Keypair { action } => match action {
+            KeypairAction::Store { name, secret } => {
+                keystore::store(&name, &secret)?;
+                output(as_json, json!({"status":"ok","action":"keypair_store","name":name}),
+                    &format!("Secret key '{name}' stored in OS keychain."));
+            },
+            KeypairAction::Get { name } => {
+                match keystore::load(&name) {
+                    Some(secret) => output(as_json, json!({"status":"ok","name":name,"secret":secret}),
+                        &format!("Secret key '{name}': {secret}")),
+                    None => output(as_json, json!({"status":"not_found","name":name}),
+                        &format!("No key found for '{name}' in OS keychain.")),
+                }
+            },
+            KeypairAction::Delete { name } => {
+                keystore::delete(&name)?;
+                output(as_json, json!({"status":"ok","action":"keypair_delete","name":name}),
+                    &format!("Secret key '{name}' deleted from OS keychain."));
+            },
         },
     }
 
@@ -892,24 +887,13 @@ fn list_escrows(
         .collect();
 
     if as_json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({"escrows": escrows}))?
-        );
+        println!("{}", serde_json::to_string_pretty(&json!({"escrows": escrows}))?);
     } else if escrows.is_empty() {
         println!("No escrows found for payer {payer}");
     } else {
+        // Issue #149: tabular output
         println!("Escrows for payer {payer}:");
-        for (i, e) in escrows.iter().enumerate() {
-            println!(
-                "  [{}] contract={} milestone={} amount={} freelancer={}",
-                i + 1,
-                e["contract_id"].as_str().unwrap_or("-"),
-                e["milestone"].as_str().unwrap_or("-"),
-                e["amount"],
-                e["freelancer"].as_str().unwrap_or("-"),
-            );
-        }
+        print_escrow_table(&escrows);
     }
     Ok(())
 }
@@ -937,33 +921,7 @@ fn fetch_remote_wasm_hash(
     network_passphrase: &str,
     contract_id: &str,
 ) -> Result<String> {
-    let out = std::process::Command::new("stellar")
-        .args([
-            "contract",
-            "fetch",
-            "--id",
-            contract_id,
-            "--rpc-url",
-            rpc_url,
-            "--network-passphrase",
-            network_passphrase,
-            "--output",
-            "wasm",
-        ])
-        .output()
-        .context("Failed to fetch contract WASM from network")?;
-
-    if !out.status.success() {
-        anyhow::bail!(
-            "stellar contract fetch failed: {}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-    }
-
-    let mut hasher = Sha256::new();
-    hasher.update(&out.stdout);
-    let result = hasher.finalize();
-    Ok(hex::encode(result))
+    wasm_hash::fetch_onchain_hash(rpc_url, network_passphrase, contract_id)
 }
 
 fn query_contract(
@@ -972,11 +930,101 @@ fn query_contract(
     contract_id: &str,
     function: &str,
 ) -> Result<String> {
+    let args = [
+        "contract", "invoke",
+        "--id", contract_id,
+        "--rpc-url", rpc_url,
+        "--network-passphrase", network_passphrase,
+        "--", function,
+    ];
     let out = std::process::Command::new("stellar")
-        .args(&args)
+        .args(args)
         .output()
         .context("stellar CLI not found — install from https://developers.stellar.org/docs/tools/developer-tools/cli/install-cli")?;
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Issue #149: tabular output helpers
+// ---------------------------------------------------------------------------
+
+/// A single key-value row for the status table.
+#[derive(Tabled)]
+struct StatusRow {
+    #[tabled(rename = "Field")]
+    field: String,
+    #[tabled(rename = "Value")]
+    value: String,
+}
+
+/// Print escrow status as a table (or fall back to raw text if unparseable).
+fn print_status_table(raw: &str, balance: Option<&str>) {
+    let parsed: Value = match serde_json::from_str(raw) {
+        Ok(v) => v,
+        Err(_) => {
+            println!("{raw}");
+            if let Some(bal) = balance {
+                println!("balance: {bal}");
+            }
+            return;
+        }
+    };
+
+    let obj = match parsed.as_object() {
+        Some(o) => o,
+        None => {
+            println!("{raw}");
+            return;
+        }
+    };
+
+    let mut rows: Vec<StatusRow> = obj
+        .iter()
+        .map(|(k, v)| StatusRow {
+            field: k.clone(),
+            value: match v {
+                Value::String(s) => s.clone(),
+                other => other.to_string(),
+            },
+        })
+        .collect();
+
+    if let Some(bal) = balance {
+        rows.push(StatusRow { field: "balance".to_owned(), value: bal.to_owned() });
+    }
+
+    println!("{}", Table::new(rows));
+}
+
+/// A single row for the escrow list table.
+#[derive(Tabled)]
+struct EscrowRow {
+    #[tabled(rename = "#")]
+    index: usize,
+    #[tabled(rename = "Contract ID")]
+    contract_id: String,
+    #[tabled(rename = "Milestone")]
+    milestone: String,
+    #[tabled(rename = "Amount")]
+    amount: String,
+    #[tabled(rename = "Freelancer")]
+    freelancer: String,
+}
+
+/// Print a list of escrows as a table.
+fn print_escrow_table(escrows: &[Value]) {
+    let rows: Vec<EscrowRow> = escrows
+        .iter()
+        .enumerate()
+        .map(|(i, e)| EscrowRow {
+            index: i + 1,
+            contract_id: e["contract_id"].as_str().unwrap_or("-").to_owned(),
+            milestone: e["milestone"].as_str().unwrap_or("-").to_owned(),
+            amount: e["amount"].to_string(),
+            freelancer: e["freelancer"].as_str().unwrap_or("-").to_owned(),
+        })
+        .collect();
+    println!("{}", Table::new(rows));
 }
 
 fn invoke_stellar_cli(
