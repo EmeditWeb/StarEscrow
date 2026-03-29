@@ -11,7 +11,7 @@ pub use storage::{EscrowData, EscrowStatus, ProtocolConfig, YieldRecipient};
 
 use crate::r#yield::YieldProtocolClient;
 
-use soroban_sdk::{contract, contractimpl, token, Address, Env, String};
+use soroban_sdk::{contract, contractimpl, token, Address, Env, Vec};
 
 #[contract]
 pub struct EscrowContract;
@@ -173,17 +173,19 @@ impl EscrowContract {
         if data.status != storage::EscrowStatus::Active {
             return Err(errors::EscrowError::NotActive);
         }
-        if milestone_idx as usize >= data.milestones.len() {
+        if milestone_idx >= data.milestones.len() {
             return Err(errors::EscrowError::MilestoneInvalidIndex);
         }
-        let milestone = &mut data.milestones[milestone_idx as usize];
+        let mut milestone = data.milestones.get(milestone_idx).expect("milestone index valid");
         if milestone.status != storage::MilestoneStatus::Pending {
             return Err(errors::EscrowError::MilestoneNotPending);
         }
         data.freelancer.require_auth();
+        let description = milestone.description.clone();
         milestone.status = storage::MilestoneStatus::Submitted;
+        data.milestones.set(milestone_idx, milestone);
         storage::save_escrow(&env, &data);
-        events::milestone_submitted(&env, &data.freelancer, milestone_idx, &milestone.description);
+        events::milestone_submitted(&env, &data.freelancer, milestone_idx, &description);
         storage::extend_ttl(&env);
         Ok(())
     }
@@ -192,30 +194,33 @@ impl EscrowContract {
     pub fn approve(env: Env, milestone_idx: u32) -> Result<(), EscrowError> {
         Self::assert_not_paused(&env)?;
         let mut data = storage::load_escrow(&env);
-        if milestone_idx as usize >= data.milestones.len() {
+        if milestone_idx >= data.milestones.len() {
             return Err(errors::EscrowError::MilestoneInvalidIndex);
         }
-        let milestone = &mut data.milestones[milestone_idx as usize];
+        let mut milestone = data.milestones.get(milestone_idx).expect("milestone index valid");
         if milestone.status != storage::MilestoneStatus::Submitted {
             return Err(errors::EscrowError::MilestoneNotSubmitted);
         }
         data.payer.require_auth();
 
         let client = token::Client::new(&env, &data.token);
-        let freelancer_amount = if storage::has_config(&env) {
+        let milestone_amount = milestone.amount;
+        let description = milestone.description.clone();
+        let (net_amount, _fee) = if storage::has_config(&env) {
             let config = storage::load_config(&env);
-            let fee = milestone.amount * (config.fee_bps as i128) / 10000;
+            let fee = milestone_amount * (config.fee_bps as i128) / 10000;
             if fee > 0 {
                 client.transfer(&env.current_contract_address(), &config.fee_collector, &fee);
             }
-            (milestone.amount - fee, fee)
+            (milestone_amount - fee, fee)
         } else {
-            (milestone.amount, 0)
+            (milestone_amount, 0)
         };
 
-        client.transfer(&env.current_contract_address(), &data.freelancer, &freelancer_amount);
-        events::milestone_approved(&env, &data.freelancer, milestone_idx, &milestone.description, freelancer_amount);
+        client.transfer(&env.current_contract_address(), &data.freelancer, &net_amount);
+        events::milestone_approved(&env, &data.freelancer, milestone_idx, &description, net_amount);
         milestone.status = storage::MilestoneStatus::Approved;
+        data.milestones.set(milestone_idx, milestone);
 
         // Check if all milestones approved
         if data.milestones.iter().all(|m| m.status == storage::MilestoneStatus::Approved) {
@@ -261,17 +266,18 @@ impl EscrowContract {
             return Err(EscrowError::IntervalNotElapsed);
         }
 
-        // Apply fee per release
+        // Per-release amount = total / recurrence_count
+        let per_release_amount = data.total_amount / i128::from(data.recurrence_count);
         let client = token::Client::new(&env, &data.token);
         let (release_amount, fee_amount) = if storage::has_config(&env) {
             let config = storage::load_config(&env);
-            let fee = data.amount * (config.fee_bps as i128) / 10000;
+            let fee = per_release_amount * (config.fee_bps as i128) / 10000;
             if fee > 0 {
                 client.transfer(&env.current_contract_address(), &config.fee_collector, &fee);
             }
-            (data.amount - fee, fee)
+            (per_release_amount - fee, fee)
         } else {
-            (data.amount, 0)
+            (per_release_amount, 0)
         };
         let _ = fee_amount;
 
@@ -313,7 +319,8 @@ impl EscrowContract {
 
         // Refund remaining (unspent) amount
         let released_amount: i128 = data.milestones.iter().map(|m| if m.status == storage::MilestoneStatus::Approved { m.amount } else { 0 }).sum();
-        let remaining = data.total_amount - released_amount + if data.recurrence_count > 0 { data.amount * data.releases_made as i128 } else { 0 };
+        let per_release = if data.recurrence_count > 0 { data.total_amount / i128::from(data.recurrence_count) } else { 0 };
+        let remaining = data.total_amount - released_amount - per_release * i128::from(data.releases_made);
 
         let client = token::Client::new(&env, &data.token);
         client.transfer(&env.current_contract_address(), &data.payer, &remaining);
@@ -358,7 +365,8 @@ impl EscrowContract {
         data.payer.require_auth();
 
         let released_amount: i128 = data.milestones.iter().map(|m| if m.status == storage::MilestoneStatus::Approved { m.amount } else { 0 }).sum();
-        let remaining = data.total_amount - released_amount + if data.recurrence_count > 0 { data.amount * data.releases_made as i128 } else { 0 };
+        let per_release = if data.recurrence_count > 0 { data.total_amount / i128::from(data.recurrence_count) } else { 0 };
+        let remaining = data.total_amount - released_amount - per_release * i128::from(data.releases_made);
 
         let client = token::Client::new(&env, &data.token);
         client.transfer(&env.current_contract_address(), &data.payer, &remaining);
