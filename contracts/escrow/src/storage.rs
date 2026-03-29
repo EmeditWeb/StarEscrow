@@ -1,5 +1,22 @@
 use soroban_sdk::{contracttype, Address, Env, String, Vec};
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MilestoneStatus {
+    Pending,
+    Submitted,
+    Approved,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct Milestone {
+    pub description: String,
+    pub amount: i128,
+    pub status: MilestoneStatus,
+}
+
+
 /// Minimum ledgers before TTL extension kicks in (~1 day at 5s/ledger).
 pub const TTL_MIN_LEDGERS: u32 = 17_280;
 /// Maximum ledgers to extend TTL to (~30 days at 5s/ledger).

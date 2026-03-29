@@ -7,7 +7,7 @@
 ///   - Verifying signatures
 use anyhow::{Context, Result};
 use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 use stellar_strkey::ed25519::{PrivateKey as StrkeySecret, PublicKey as StrkeyPublic};
 
 /// A Stellar keypair wrapping an ed25519 signing key.
