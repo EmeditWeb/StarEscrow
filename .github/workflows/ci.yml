@@ -26,3 +26,5 @@ jobs:
 
     - name: Cargo test
       run: cargo test --workspace
+      env:
+        SOROBAN_TEST_SNAPSHOT_UPDATE: "0"
