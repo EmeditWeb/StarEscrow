@@ -1,0 +1,21 @@
+{
+  "name": "starescrow-indexer",
+  "version": "0.0.1",
+  "description": "SubQuery Indexer for StarEscrow Soroban Contracts",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "subql build",
+    "codegen": "subql codegen",
+    "test": "subql build && subql test",
+    "start:docker": "docker-compose pull && docker-compose up --remove-orphans"
+  },
+  "dependencies": {
+    "@subql/common": "latest",
+    "@subql/types-stellar": "latest",
+    "tslib": "^2.6.2"
+  },
+  "devDependencies": {
+    "@subql/cli": "latest",
+    "typescript": "^5.2.2"
+  }
+}
