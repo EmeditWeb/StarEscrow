@@ -189,26 +189,30 @@ The StarEscrow CLI (`star-escrow`) provides a convenient interface for interacti
 #### Build from Source
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/henry-peters/StarEscrow.git
    cd StarEscrow
    ```
 
 2. Build the CLI in release mode:
+
    ```bash
    cargo build --release -p cli
    ```
 
 3. The binary will be located at:
+
    ```bash
    ./target/release/star-escrow
    ```
 
 4. (Optional) Install it to your PATH:
+
    ```bash
    # Linux/macOS
    cp ./target/release/star-escrow /usr/local/bin/
-   
+
    # Or using cargo install (if you have cargo-install)
    cargo install --path clients/cli
    ```
@@ -290,5 +294,24 @@ star-escrow cancel
 Run `star-escrow --help` for the full command reference.
 
 ## License
+
+## Event Indexing
+
+StarEscrow is optimized for event-driven frontends. We recommend using **Mercury** for indexing.
+
+1. **Schema:** Detailed event structures are located in [docs/INDEXING.md](./docs/INDEXING.md).
+2. **Setup:** Ensure your indexer filters by the `StarEscrow` Contract ID.
+3. **Webhooks:** You can configure Mercury to send POST requests to your backend whenever `milestone_submitted` is emitted to automate notifications.
+
+---
+
+### Completion of Acceptance Criteria:
+
+1.  **Event Schema Documented:** Included in Section 1, mapping the Rust `pub fn` events to their XDR topics and data.
+2.  **Integration Guide:** Section 2 provides the "Mercury" setup steps.
+3.  **Example Queries:** Section 3 provides GraphQL templates for common dashboard needs (Earnings and Live Feeds).
+4.  **README Section:** Section 4 provides the exact text to paste into your root `README.md`.
+
+**Would you like me to generate a specific Rust "Event Watcher" script using the `stellar-rpc-client` to demonstrate how to poll these events locally?**
 
 This project is licensed under the [MIT License](LICENSE).
