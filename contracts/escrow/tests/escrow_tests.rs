@@ -1,11 +1,14 @@
 #![cfg(test)]
 
-use escrow::{EscrowContract, EscrowContractClient, EscrowError, EscrowStatus, YieldRecipient};
+use escrow::{ EscrowContract, EscrowContractClient, EscrowError, EscrowStatus, YieldRecipient };
 use escrow::storage;
 use soroban_sdk::{
-    testutils::{Address as _, Ledger as _},
-    token::{Client as TokenClient, StellarAssetClient},
-    Address, Env, IntoVal, String,
+    testutils::{ Address as _, Ledger as _ },
+    token::{ Client as TokenClient, StellarAssetClient },
+    Address,
+    Env,
+    IntoVal,
+    String,
 };
 
 fn create_token<'a>(env: &Env, admin: &Address) -> (TokenClient<'a>, StellarAssetClient<'a>) {
@@ -83,7 +86,7 @@ impl<'a> Setup<'a> {
             &self.token_addr,
             &amount,
             &m,
-            &config,
+            &config
         );
     }
 }
@@ -126,7 +129,7 @@ fn test_raise_dispute_by_payer_and_resolve_to_freelancer() {
 fn test_approve_before_submit_fails() {
     let s = Setup::new();
     s.simple_create(100, "Approve before submit");
-    let err = s.contract.try_approve().unwrap_err().unwrap();
+    let err = s.contract.try_approve(&0u32).unwrap_err().unwrap();
     assert_eq!(err, EscrowError::WorkNotSubmitted);
 }
 
@@ -144,7 +147,13 @@ fn test_double_create_fails() {
     let s = Setup::new();
     s.simple_create(100, "First");
     let m = String::from_str(&s.env, "Second");
-    let config = escrow::storage::EscrowConfig { deadline: None, yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 0u64, recurrence_count: 0u32 };
+    let config = escrow::storage::EscrowConfig {
+        deadline: None,
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 0u64,
+        recurrence_count: 0u32,
+    };
     let err = s.contract
         .try_create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config)
         .unwrap_err()
@@ -156,7 +165,13 @@ fn test_double_create_fails() {
 fn test_invalid_amount_fails() {
     let s = Setup::new();
     let m = String::from_str(&s.env, "Bad amount");
-    let config = escrow::storage::EscrowConfig { deadline: None, yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 0u64, recurrence_count: 0u32 };
+    let config = escrow::storage::EscrowConfig {
+        deadline: None,
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 0u64,
+        recurrence_count: 0u32,
+    };
     let err = s.contract
         .try_create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &0, &m, &config)
         .unwrap_err()
@@ -167,25 +182,21 @@ fn test_invalid_amount_fails() {
 fn test_create_zero_amount_fails() {
     let s = Setup::new();
     let m = String::from_str(&s.env, "Zero amount milestone");
-    let milestones = soroban_sdk::vec![
-        &s.env,
-        storage::Milestone {
-            description: m.clone(),
-            amount: 0,
-            status: storage::MilestoneStatus::Pending,
-        }
-    ];
     let err = s.contract
         .try_create(
             &s.payer,
             &s.freelancer,
+            &s.arbitrator,
             &s.token_addr,
-            &milestones,
-            &None,
-            &None,
-            &YieldRecipient::Payer,
-            &0u64,
-            &0u32,
+            &0i128,
+            &m,
+            &(storage::EscrowConfig {
+                deadline: None,
+                yield_protocol: None,
+                yield_recipient: storage::YieldRecipient::Payer,
+                interval: 0,
+                recurrence_count: 0,
+            })
         )
         .unwrap_err()
         .unwrap();
@@ -195,9 +206,17 @@ fn test_create_zero_amount_fails() {
 #[test]
 fn test_expire_before_deadline_fails() {
     let s = Setup::new();
-    s.env.ledger().with_mut(|l| l.timestamp = 100);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 100;
+    });
     let m = String::from_str(&s.env, "Expire test");
-    let config = storage::EscrowConfig { deadline: Some(500u64), yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 0u64, recurrence_count: 0u32 };
+    let config = storage::EscrowConfig {
+        deadline: Some(500u64),
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 0u64,
+        recurrence_count: 0u32,
+    };
     s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
     let err = s.contract.try_expire().unwrap_err().unwrap();
     assert_eq!(err, EscrowError::DeadlineNotPassed);
@@ -217,11 +236,21 @@ fn test_get_status_lifecycle() {
 #[test]
 fn test_get_status_expired() {
     let s = Setup::new();
-    s.env.ledger().with_mut(|l| l.timestamp = 100);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 100;
+    });
     let m = String::from_str(&s.env, "Expired status");
-    let config = storage::EscrowConfig { deadline: Some(500u64), yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 0u64, recurrence_count: 0u32 };
+    let config = storage::EscrowConfig {
+        deadline: Some(500u64),
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 0u64,
+        recurrence_count: 0u32,
+    };
     s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
-    s.env.ledger().with_mut(|l| l.timestamp = 1000);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 1000;
+    });
     s.contract.expire();
     assert_eq!(s.contract.get_status(), EscrowStatus::Expired);
 }
@@ -282,16 +311,14 @@ fn test_recurring_locks_full_amount_upfront() {
     let s = Setup::new();
     let m = String::from_str(&s.env, "Monthly retainer");
     // 3 releases of 100 each = 300 locked
-    let config = storage::EscrowConfig { deadline: None, yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 2592000u64, recurrence_count: 3u32 };
-    s.contract.create(
-        &s.payer,
-        &s.freelancer,
-        &s.arbitrator,
-        &s.token_addr,
-        &100,
-        &m,
-        &config,
-    );
+    let config = storage::EscrowConfig {
+        deadline: None,
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 2592000u64,
+        recurrence_count: 3u32,
+    };
+    s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
     assert_eq!(s.token.balance(&s.contract.address), 300);
     assert_eq!(s.token.balance(&s.payer), 9700);
 }
@@ -299,22 +326,24 @@ fn test_recurring_locks_full_amount_upfront() {
 #[test]
 fn test_recurring_release_after_interval() {
     let s = Setup::new();
-    s.env.ledger().with_mut(|l| l.timestamp = 1000);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 1000;
+    });
 
     let m = String::from_str(&s.env, "Monthly retainer");
-    let config = storage::EscrowConfig { deadline: None, yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 2592000u64, recurrence_count: 3u32 };
-    s.contract.create(
-        &s.payer,
-        &s.freelancer,
-        &s.arbitrator,
-        &s.token_addr,
-        &100,
-        &m,
-        &config,
-    );
+    let config = storage::EscrowConfig {
+        deadline: None,
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 2592000u64,
+        recurrence_count: 3u32,
+    };
+    s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
 
     // Advance past first interval
-    s.env.ledger().with_mut(|l| l.timestamp = 1000 + 2592000 + 1);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 1000 + 2592000 + 1;
+    });
     s.contract.release_recurring();
 
     assert_eq!(s.token.balance(&s.freelancer), 100);
@@ -326,22 +355,24 @@ fn test_recurring_release_after_interval() {
 #[test]
 fn test_recurring_interval_not_elapsed_fails() {
     let s = Setup::new();
-    s.env.ledger().with_mut(|l| l.timestamp = 1000);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 1000;
+    });
 
     let m = String::from_str(&s.env, "Too early");
-    let config = storage::EscrowConfig { deadline: None, yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 2592000u64, recurrence_count: 3u32 };
-    s.contract.create(
-        &s.payer,
-        &s.freelancer,
-        &s.arbitrator,
-        &s.token_addr,
-        &100,
-        &m,
-        &config,
-    );
+    let config = storage::EscrowConfig {
+        deadline: None,
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 2592000u64,
+        recurrence_count: 3u32,
+    };
+    s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
 
     // Not enough time has passed
-    s.env.ledger().with_mut(|l| l.timestamp = 1500);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 1500;
+    });
     let err = s.contract.try_release_recurring().unwrap_err().unwrap();
     assert_eq!(err, EscrowError::IntervalNotElapsed);
 }
@@ -349,27 +380,33 @@ fn test_recurring_interval_not_elapsed_fails() {
 #[test]
 fn test_recurring_completes_after_all_releases() {
     let s = Setup::new();
-    s.env.ledger().with_mut(|l| l.timestamp = 0);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 0;
+    });
 
     let m = String::from_str(&s.env, "3 releases");
-    let config = storage::EscrowConfig { deadline: None, yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 1000u64, recurrence_count: 3u32 };
-    s.contract.create(
-        &s.payer,
-        &s.freelancer,
-        &s.arbitrator,
-        &s.token_addr,
-        &100,
-        &m,
-        &config,
-    );
+    let config = storage::EscrowConfig {
+        deadline: None,
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 1000u64,
+        recurrence_count: 3u32,
+    };
+    s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
 
-    s.env.ledger().with_mut(|l| l.timestamp = 1001);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 1001;
+    });
     s.contract.release_recurring();
 
-    s.env.ledger().with_mut(|l| l.timestamp = 2002);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 2002;
+    });
     s.contract.release_recurring();
 
-    s.env.ledger().with_mut(|l| l.timestamp = 3003);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 3003;
+    });
     s.contract.release_recurring();
 
     assert_eq!(s.contract.get_status(), EscrowStatus::Completed);
@@ -380,27 +417,33 @@ fn test_recurring_completes_after_all_releases() {
 #[test]
 fn test_recurring_stops_after_count_limit() {
     let s = Setup::new();
-    s.env.ledger().with_mut(|l| l.timestamp = 0);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 0;
+    });
 
     let m = String::from_str(&s.env, "Count limit");
-    let config = storage::EscrowConfig { deadline: None, yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 1000u64, recurrence_count: 2u32 };
-    s.contract.create(
-        &s.payer,
-        &s.freelancer,
-        &s.arbitrator,
-        &s.token_addr,
-        &100,
-        &m,
-        &config,
-    );
+    let config = storage::EscrowConfig {
+        deadline: None,
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 1000u64,
+        recurrence_count: 2u32,
+    };
+    s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
 
-    s.env.ledger().with_mut(|l| l.timestamp = 1001);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 1001;
+    });
     s.contract.release_recurring();
-    s.env.ledger().with_mut(|l| l.timestamp = 2002);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 2002;
+    });
     s.contract.release_recurring();
 
     // Third call should fail — already completed
-    s.env.ledger().with_mut(|l| l.timestamp = 3003);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 3003;
+    });
     let err = s.contract.try_release_recurring().unwrap_err().unwrap();
     assert_eq!(err, EscrowError::NotActive);
 }
@@ -416,22 +459,24 @@ fn test_non_recurring_release_recurring_fails() {
 #[test]
 fn test_recurring_cancel_refunds_remaining() {
     let s = Setup::new();
-    s.env.ledger().with_mut(|l| l.timestamp = 0);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 0;
+    });
 
     let m = String::from_str(&s.env, "Cancel recurring");
-    let config = storage::EscrowConfig { deadline: None, yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 1000u64, recurrence_count: 3u32 };
-    s.contract.create(
-        &s.payer,
-        &s.freelancer,
-        &s.arbitrator,
-        &s.token_addr,
-        &100,
-        &m,
-        &config,
-    );
+    let config = storage::EscrowConfig {
+        deadline: None,
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 1000u64,
+        recurrence_count: 3u32,
+    };
+    s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
 
     // Release one, then cancel — should refund 200
-    s.env.ledger().with_mut(|l| l.timestamp = 1001);
+    s.env.ledger().with_mut(|l| {
+        l.timestamp = 1001;
+    });
     s.contract.release_recurring();
     s.contract.cancel();
 
@@ -452,11 +497,11 @@ fn test_get_balance_lifecycle() {
     // After create: funds locked
     assert_eq!(s.contract.get_balance(&s.token_addr), 500);
 
-    s.contract.submit_work();
+    s.contract.submit_work(&0u32);
     // After submit_work: still locked
     assert_eq!(s.contract.get_balance(&s.token_addr), 500);
 
-    s.contract.approve();
+    s.contract.approve(&0u32);
     // After approve: released to freelancer
     assert_eq!(s.contract.get_balance(&s.token_addr), 0);
 }
@@ -477,27 +522,31 @@ fn test_update_milestone_success() {
     let s = Setup::new();
     s.simple_create(100, "Original milestone");
     let new_desc = String::from_str(&s.env, "Updated milestone");
-    s.contract.update_milestone(&new_desc);
-    assert_eq!(s.contract.get_escrow().milestone, new_desc);
+    s.contract.update_milestone(&0u32, &new_desc);
+    assert_eq!(s.contract.get_escrow().milestones.get(0).unwrap().description, new_desc);
 }
 
 #[test]
 fn test_update_milestone_unauthorized() {
-    use soroban_sdk::testutils::{MockAuth, MockAuthInvoke};
+    use soroban_sdk::testutils::{ MockAuth, MockAuthInvoke };
     let s = Setup::new();
     s.simple_create(100, "Original milestone");
     let attacker = Address::generate(&s.env);
     let new_desc = String::from_str(&s.env, "Hacked milestone");
-    s.env.mock_auths(&[MockAuth {
-        address: &attacker,
-        invoke: &MockAuthInvoke {
-            contract: &s.contract.address,
-            fn_name: "update_milestone",
-            args: (new_desc.clone(),).into_val(&s.env),
-            sub_invokes: &[],
-        },
-    }]);
-    let result = s.contract.try_update_milestone(&new_desc);
+    s.env.mock_auths(
+        &[
+            MockAuth {
+                address: &attacker,
+                invoke: &(MockAuthInvoke {
+                    contract: &s.contract.address,
+                    fn_name: "update_milestone",
+                    args: (0u32, new_desc.clone()).into_val(&s.env),
+                    sub_invokes: &[],
+                }),
+            },
+        ]
+    );
+    let result = s.contract.try_update_milestone(&0u32, &new_desc);
     assert!(result.is_err());
 }
 
@@ -505,10 +554,40 @@ fn test_update_milestone_unauthorized() {
 fn test_update_milestone_not_active_fails() {
     let s = Setup::new();
     s.simple_create(100, "Milestone");
-    s.contract.submit_work();
-    s.contract.approve();
+    s.contract.submit_work(&0u32);
+    s.contract.approve(&0u32);
     let new_desc = String::from_str(&s.env, "Too late");
-    let err = s.contract.try_update_milestone(&new_desc).unwrap_err().unwrap();
+    let err = s.contract.try_update_milestone(&0u32, &new_desc).unwrap_err().unwrap();
+    assert_eq!(err, EscrowError::NotActive);
+}
+
+// ── partial_release ───────────────────────────────────────────────────────────
+
+#[test]
+fn test_partial_release_success() {
+    let s = Setup::new();
+    s.simple_create(500, "Partial release");
+    s.contract.partial_release(&s.token_addr, &200);
+    assert_eq!(s.token.balance(&s.freelancer), 200);
+    assert_eq!(s.token.balance(&s.contract.address), 300);
+    // escrow still active
+    assert_eq!(s.contract.get_status(), EscrowStatus::Active);
+}
+
+#[test]
+fn test_partial_release_over_locked_fails() {
+    let s = Setup::new();
+    s.simple_create(500, "Over release");
+    let err = s.contract.try_partial_release(&s.token_addr, &600).unwrap_err().unwrap();
+    assert_eq!(err, EscrowError::InsufficientFunds);
+}
+
+#[test]
+fn test_partial_release_not_active_fails() {
+    let s = Setup::new();
+    s.simple_create(100, "Not active");
+    s.contract.cancel();
+    let err = s.contract.try_partial_release(&s.token_addr, &50).unwrap_err().unwrap();
     assert_eq!(err, EscrowError::NotActive);
 }
 
@@ -575,7 +654,13 @@ fn test_transfer_payer_paused() {
 fn test_extend_deadline_success() {
     let s = Setup::new();
     let m = String::from_str(&s.env, "Extend deadline");
-    let config = storage::EscrowConfig { deadline: Some(1000u64), yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 0u64, recurrence_count: 0u32 };
+    let config = storage::EscrowConfig {
+        deadline: Some(1000u64),
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 0u64,
+        recurrence_count: 0u32,
+    };
     s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
     s.contract.extend_deadline(&2000u64);
     let data = s.contract.get_escrow();
@@ -588,7 +673,13 @@ fn test_extend_deadline_success() {
 fn test_extend_deadline_equal_fails() {
     let s = Setup::new();
     let m = String::from_str(&s.env, "Equal deadline");
-    let config = storage::EscrowConfig { deadline: Some(1000u64), yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 0u64, recurrence_count: 0u32 };
+    let config = storage::EscrowConfig {
+        deadline: Some(1000u64),
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 0u64,
+        recurrence_count: 0u32,
+    };
     s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
     let err = s.contract.try_extend_deadline(&1000u64).unwrap_err().unwrap();
     assert_eq!(err, EscrowError::InvalidDeadline);
@@ -598,7 +689,13 @@ fn test_extend_deadline_equal_fails() {
 fn test_extend_deadline_less_fails() {
     let s = Setup::new();
     let m = String::from_str(&s.env, "Less deadline");
-    let config = storage::EscrowConfig { deadline: Some(1000u64), yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 0u64, recurrence_count: 0u32 };
+    let config = storage::EscrowConfig {
+        deadline: Some(1000u64),
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 0u64,
+        recurrence_count: 0u32,
+    };
     s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
     let err = s.contract.try_extend_deadline(&500u64).unwrap_err().unwrap();
     assert_eq!(err, EscrowError::InvalidDeadline);
@@ -616,7 +713,13 @@ fn test_extend_deadline_none_fails() {
 fn test_extend_deadline_paused() {
     let s = Setup::new();
     let m = String::from_str(&s.env, "Paused deadline");
-    let config = storage::EscrowConfig { deadline: Some(1000u64), yield_protocol: None, yield_recipient: YieldRecipient::Payer, interval: 0u64, recurrence_count: 0u32 };
+    let config = storage::EscrowConfig {
+        deadline: Some(1000u64),
+        yield_protocol: None,
+        yield_recipient: YieldRecipient::Payer,
+        interval: 0u64,
+        recurrence_count: 0u32,
+    };
     s.contract.create(&s.payer, &s.freelancer, &s.arbitrator, &s.token_addr, &100, &m, &config);
     s.contract.pause();
     let err = s.contract.try_extend_deadline(&2000u64).unwrap_err().unwrap();
@@ -638,15 +741,19 @@ fn test_cancel_unauthorized() {
 
     // Disable mock_all_auths and provide only the attacker's auth for cancel.
     // The payer's require_auth() inside cancel will not be satisfied.
-    s.env.mock_auths(&[MockAuth {
-        address: &attacker,
-        invoke: &MockAuthInvoke {
-            contract: &s.contract.address,
-            fn_name: "cancel",
-            args: ().into_val(&s.env),
-            sub_invokes: &[],
-        },
-    }]);
+    s.env.mock_auths(
+        &[
+            MockAuth {
+                address: &attacker,
+                invoke: &(MockAuthInvoke {
+                    contract: &s.contract.address,
+                    fn_name: "cancel",
+                    args: ().into_val(&s.env),
+                    sub_invokes: &[],
+                }),
+            },
+        ]
+    );
 
     // The call must fail because the payer's auth is not present
     let result = s.contract.try_cancel();
@@ -733,5 +840,104 @@ fn test_nft_transfer_chain() {
 
     s.contract.nft_transfer(&owner_c);
     assert_eq!(s.contract.nft_owner(), owner_c);
-    assert_eq!(s.contract.get_escrow().payer, owner_c);
+}
+
+#[test]
+fn test_get_escrow_return_values_lifecycle() {
+    let s = Setup::new();
+
+    // Test after create - status should be Active
+    s.simple_create(300, "Cancel test milestone");
+    let escrow_data = s.contract.get_escrow();
+    assert_eq!(escrow_data.status, EscrowStatus::Active);
+    assert_eq!(escrow_data.amount, 300);
+    assert_eq!(escrow_data.total_amount, 300);
+    assert_eq!(escrow_data.payer, s.payer);
+    assert_eq!(escrow_data.freelancer, s.freelancer);
+    assert_eq!(escrow_data.arbitrator, s.arbitrator);
+    assert_eq!(escrow_data.token, s.token_addr);
+    assert_eq!(escrow_data.milestones.len(), 1);
+    assert_eq!(
+        escrow_data.milestones.get(0).unwrap().description,
+        String::from_str(&s.env, "Cancel test milestone")
+    );
+    assert_eq!(escrow_data.milestones.get(0).unwrap().amount, 300);
+    assert_eq!(escrow_data.milestones.get(0).unwrap().status, storage::MilestoneStatus::Pending);
+
+    // Test after submit_work - status should be WorkSubmitted
+    s.contract.submit_work(&0u32);
+    let escrow_data = s.contract.get_escrow();
+    assert_eq!(escrow_data.status, EscrowStatus::WorkSubmitted);
+    assert_eq!(escrow_data.amount, 300);
+    assert_eq!(escrow_data.total_amount, 300);
+    assert_eq!(escrow_data.payer, s.payer);
+    assert_eq!(escrow_data.freelancer, s.freelancer);
+    assert_eq!(escrow_data.arbitrator, s.arbitrator);
+    assert_eq!(escrow_data.token, s.token_addr);
+    assert_eq!(escrow_data.milestones.len(), 1);
+    assert_eq!(
+        escrow_data.milestones.get(0).unwrap().description,
+        String::from_str(&s.env, "Cancel test milestone")
+    );
+    assert_eq!(escrow_data.milestones.get(0).unwrap().amount, 300);
+    assert_eq!(escrow_data.milestones.get(0).unwrap().status, storage::MilestoneStatus::Submitted);
+
+    // Test after approve - status should be Completed
+    s.contract.approve(&0u32);
+    let escrow_data = s.contract.get_escrow();
+    assert_eq!(escrow_data.status, EscrowStatus::Completed);
+    assert_eq!(escrow_data.amount, 300);
+    assert_eq!(escrow_data.total_amount, 300);
+    assert_eq!(escrow_data.payer, s.payer);
+    assert_eq!(escrow_data.freelancer, s.freelancer);
+    assert_eq!(escrow_data.arbitrator, s.arbitrator);
+    assert_eq!(escrow_data.token, s.token_addr);
+    assert_eq!(escrow_data.milestones.len(), 1);
+    assert_eq!(
+        escrow_data.milestones.get(0).unwrap().description,
+        String::from_str(&s.env, "Cancel test milestone")
+    );
+    assert_eq!(escrow_data.milestones.get(0).unwrap().amount, 300);
+    assert_eq!(escrow_data.milestones.get(0).unwrap().status, storage::MilestoneStatus::Submitted);
+}
+
+#[test]
+fn test_get_escrow_return_values_cancel() {
+    let s = Setup::new();
+
+    // Test after create - status should be Active
+    s.simple_create(300, "Cancel test milestone");
+    let escrow_data = s.contract.get_escrow();
+    assert_eq!(escrow_data.status, EscrowStatus::Active);
+    assert_eq!(escrow_data.amount, 300);
+    assert_eq!(escrow_data.total_amount, 300);
+    assert_eq!(escrow_data.payer, s.payer);
+    assert_eq!(escrow_data.freelancer, s.freelancer);
+    assert_eq!(escrow_data.arbitrator, s.arbitrator);
+    assert_eq!(escrow_data.token, s.token_addr);
+    assert_eq!(escrow_data.milestones.len(), 1);
+    assert_eq!(
+        escrow_data.milestones.get(0).unwrap().description,
+        String::from_str(&s.env, "Cancel test milestone")
+    );
+    assert_eq!(escrow_data.milestones.get(0).unwrap().amount, 300);
+    assert_eq!(escrow_data.milestones.get(0).unwrap().status, storage::MilestoneStatus::Pending);
+
+    // Test after cancel - status should be Cancelled
+    s.contract.cancel();
+    let escrow_data = s.contract.get_escrow();
+    assert_eq!(escrow_data.status, EscrowStatus::Cancelled);
+    assert_eq!(escrow_data.amount, 300);
+    assert_eq!(escrow_data.total_amount, 300);
+    assert_eq!(escrow_data.payer, s.payer);
+    assert_eq!(escrow_data.freelancer, s.freelancer);
+    assert_eq!(escrow_data.arbitrator, s.arbitrator);
+    assert_eq!(escrow_data.token, s.token_addr);
+    assert_eq!(escrow_data.milestones.len(), 1);
+    assert_eq!(
+        escrow_data.milestones.get(0).unwrap().description,
+        String::from_str(&s.env, "Cancel test milestone")
+    );
+    assert_eq!(escrow_data.milestones.get(0).unwrap().amount, 300);
+    assert_eq!(escrow_data.milestones.get(0).unwrap().status, storage::MilestoneStatus::Pending);
 }

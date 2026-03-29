@@ -1,0 +1,37 @@
+# indexer/schema.graphql
+
+type EscrowCreated @entity {
+  id: ID! # Transaction Hash + Event Index
+  payer: String! @index
+  freelancer: String! @index
+  token: String!
+  totalAmount: BigInt!
+  ledger: Int!
+  timestamp: BigInt!
+}
+
+type MilestoneSubmitted @entity {
+  id: ID!
+  escrowId: String! @index
+  freelancer: String!
+  milestoneIndex: Int!
+  description: String!
+  ledger: Int!
+}
+
+type MilestoneApproved @entity {
+  id: ID!
+  escrowId: String! @index
+  freelancer: String!
+  milestoneIndex: Int!
+  amount: BigInt!
+  ledger: Int!
+}
+
+type PaymentReleased @entity {
+  id: ID!
+  freelancer: String! @index
+  amount: BigInt!
+  isRecurring: Boolean!
+  releaseNum: Int
+}
