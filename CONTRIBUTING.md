@@ -78,6 +78,20 @@ Before requesting review, confirm:
 - [ ] New behaviour is covered by tests
 - [ ] Relevant docs updated (if applicable)
 
+## Test Snapshots
+
+The escrow contract tests use Soroban's built-in snapshot system. Snapshots are stored in `contracts/escrow/test_snapshots/` and are checked in to the repository.
+
+CI runs tests with `SOROBAN_TEST_SNAPSHOT_UPDATE=0`, which causes the test suite to fail if any snapshot is stale or missing.
+
+**If your changes affect contract behaviour and snapshots need updating**, regenerate them locally:
+
+```bash
+SOROBAN_TEST_SNAPSHOT_UPDATE=1 cargo test -p escrow
+```
+
+Then commit the updated snapshot files alongside your code changes.
+
 ## Finding Something to Work On
 
 Browse [open issues](../../issues) — issues tagged **`good first issue`** are a great starting point for first-time contributors, including those joining via OnlyDust or hackathons.
