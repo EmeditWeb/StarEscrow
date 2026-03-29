@@ -584,14 +584,14 @@ impl EscrowContract {
         for change in changes.iter() {
             let key = change.key.clone();
             let value = change.value.clone();
-            if key == String::from_str(&env, \"fee_bps\") {
+            if key == String::from_str(&env, "fee_bps") {
                 let bps = parse_u32_from_string(&env, &value).ok_or(EscrowError::InvalidAmount)?;
                 config.fee_bps = bps;
-            } else if key == String::from_str(&env, \"fee_collector\") {
+            } else if key == String::from_str(&env, "fee_collector") {
                 config.fee_collector = Address::from_string(&value);
-            } else if key == String::from_str(&env, \"add_token\") {
+            } else if key == String::from_str(&env, "add_token") {
                 storage::add_to_allowlist(&env, Address::from_string(&value));
-            } else if key == String::from_str(&env, \"remove_token\") {
+            } else if key == String::from_str(&env, "remove_token") {
                 storage::remove_from_allowlist(&env, Address::from_string(&value));
             }
         }
@@ -609,6 +609,12 @@ pub struct GovParamChange {
 }
 
 fn parse_u32_from_string(env: &Env, s: &String) -> Option<u32> {
-    // simplified
-    Some(0)
+    let mut result = 0u32;
+    let bytes = s.to_array();
+    if bytes.is_empty() { return None; }
+    for byte in bytes.iter() {
+        if byte < b'0' || byte > b'9' { return None; }
+        result = result.checked_mul(10)?.checked_add((byte - b'0') as u32)?;
+    }
+    Some(result)
 }
