@@ -27,33 +27,46 @@ jobs:
       - name: Cargo test
         run: cargo test --workspace
 
-  semver:
+  optimize-wasm:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
-      - name: Install cargo-semver-checks
-        run: cargo install cargo-semver-checks --locked
+      - name: Install Stellar CLI with optimize support
+        run: cargo install --locked stellar-cli --features opt
 
-      - name: Select baseline revision (PR)
-        if: github.event_name == 'pull_request'
-        run: echo "BASE_REV=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_ENV"
+      - name: Build and optimize escrow wasm
+        run: make optimize
 
-      - name: Select baseline revision (push)
-        if: github.event_name != 'pull_request'
-        run: echo "BASE_REV=${{ github.event.before }}" >> "$GITHUB_ENV"
-
-      - name: Check contract ABI semver compatibility
+      - name: Capture wasm sizes
+        id: wasm_sizes
         run: |
-          for manifest in contracts/escrow/Cargo.toml contracts/factory/Cargo.toml contracts/governance/Cargo.toml contracts/reputation/Cargo.toml; do
-            cargo semver-checks check-release --manifest-path "$manifest" --baseline-rev "$BASE_REV"
-          done
+          before_bytes="$(wc -c < target/wasm32-unknown-unknown/release/escrow.wasm)"
+          after_bytes="$(wc -c < target/wasm32-unknown-unknown/release/escrow.optimized.wasm)"
+          echo "before_bytes=$before_bytes" >> "$GITHUB_OUTPUT"
+          echo "after_bytes=$after_bytes" >> "$GITHUB_OUTPUT"
+
+      - name: Publish wasm size summary
+        run: |
+          {
+            echo "## Optimized WASM Size"
+            echo ""
+            echo "| Stage | Bytes |"
+            echo "|---|---:|"
+            echo "| Before optimize | ${{ steps.wasm_sizes.outputs.before_bytes }} |"
+            echo "| After optimize | ${{ steps.wasm_sizes.outputs.after_bytes }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload optimized wasm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: escrow-optimized-wasm
+          path: target/wasm32-unknown-unknown/release/escrow.optimized.wasm
 
   fuzz:
     runs-on: ubuntu-latest

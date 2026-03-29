@@ -47,10 +47,10 @@ stellar --version
 
 You need at minimum two Stellar accounts:
 
-| Account | Purpose |
-|---------|---------|
+| Account      | Purpose                                        |
+| ------------ | ---------------------------------------------- |
 | **Deployer** | Deploys the contract and pays transaction fees |
-| **Admin** | Passed to `init()` as the protocol admin |
+| **Admin**    | Passed to `init()` as the protocol admin       |
 
 For testnet you can fund accounts with Friendbot (see below). For mainnet you must hold XLM.
 
@@ -61,19 +61,19 @@ For testnet you can fund accounts with Friendbot (see below). For mainnet you mu
 From the project root:
 
 ```bash
-stellar contract build
+make release
 ```
 
-This runs the release profile build (optimised, LTO, stripped) and produces:
+This builds and optimizes the contract WASM with `stellar contract optimize` and produces:
 
 ```
-target/wasm32-unknown-unknown/release/escrow.wasm
+target/wasm32-unknown-unknown/release/escrow.optimized.wasm
 ```
 
 Verify the output exists:
 
 ```bash
-ls -lh target/wasm32-unknown-unknown/release/escrow.wasm
+ls -lh target/wasm32-unknown-unknown/release/escrow.optimized.wasm
 ```
 
 > **Note:** The release profile is configured in the root `Cargo.toml` with `opt-level = "z"`, `lto = true`, and `strip = "symbols"` to minimise contract size and fee cost.
@@ -113,7 +113,7 @@ stellar account show $(stellar keys address deployer) --network testnet
 
 ```bash
 stellar contract upload \
-  --wasm target/wasm32-unknown-unknown/release/escrow.wasm \
+  --wasm target/wasm32-unknown-unknown/release/escrow.optimized.wasm \
   --source deployer \
   --network testnet
 ```
@@ -153,6 +153,7 @@ stellar contract invoke \
 ```
 
 Replace:
+
 - `<admin-address>` — the admin's Stellar address (G…)
 - `<fee-collector-address>` — where protocol fees should be sent
 - `250` — fee in basis points (2.5%); set `0` for no fee
@@ -188,7 +189,7 @@ Confirm the account is funded with sufficient XLM to cover upload, deploy, and i
 
 ```bash
 stellar contract upload \
-  --wasm target/wasm32-unknown-unknown/release/escrow.wasm \
+  --wasm target/wasm32-unknown-unknown/release/escrow.optimized.wasm \
   --source deployer \
   --network mainnet
 ```
@@ -276,6 +277,7 @@ stellar events \
 ### 4.4 Verify Fee Configuration
 
 Invoke `approve()` on the test escrow and confirm:
+
 1. The `fee_collector` received the expected fee (`amount * fee_bps / 10_000`).
 2. The freelancer received the remainder.
 
@@ -327,11 +329,11 @@ See the `clients/cli/` directory for full CLI documentation.
 
 ## Troubleshooting
 
-| Issue | Likely Cause | Fix |
-|-------|-------------|-----|
-| `AlreadyExists` on `init` | `init()` already called | Each contract instance can only be initialised once |
-| `Paused` error | Admin paused the contract | Call `unpause()` from admin account |
-| Insufficient balance | Payer lacks token balance | Fund payer with the token before calling `create()` |
-| `DeadlineNotPassed` | `expire()` called too early | Wait until ledger timestamp exceeds deadline |
-| `NotActive` on `cancel` | Work already submitted | Cannot cancel after `submit_work()` |
-| Upload fails with size error | WASM too large | Ensure you built with `stellar contract build` (release profile) |
+| Issue                        | Likely Cause                | Fix                                                              |
+| ---------------------------- | --------------------------- | ---------------------------------------------------------------- |
+| `AlreadyExists` on `init`    | `init()` already called     | Each contract instance can only be initialised once              |
+| `Paused` error               | Admin paused the contract   | Call `unpause()` from admin account                              |
+| Insufficient balance         | Payer lacks token balance   | Fund payer with the token before calling `create()`              |
+| `DeadlineNotPassed`          | `expire()` called too early | Wait until ledger timestamp exceeds deadline                     |
+| `NotActive` on `cancel`      | Work already submitted      | Cannot cancel after `submit_work()`                              |
+| Upload fails with size error | WASM too large              | Ensure you built with `stellar contract build` (release profile) |
