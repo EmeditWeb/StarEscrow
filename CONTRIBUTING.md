@@ -13,12 +13,12 @@ Thanks for your interest in contributing! This guide covers everything you need 
 
 ## Branch Naming
 
-| Type | Pattern | Example |
-|------|---------|---------|
-| Feature | `feat/<short-description>` | `feat/dispute-resolution` |
-| Bug fix | `fix/<short-description>` | `fix/deadline-overflow` |
-| Docs | `docs/<short-description>` | `docs/update-readme` |
-| Chore | `chore/<short-description>` | `chore/bump-deps` |
+| Type    | Pattern                     | Example                   |
+| ------- | --------------------------- | ------------------------- |
+| Feature | `feat/<short-description>`  | `feat/dispute-resolution` |
+| Bug fix | `fix/<short-description>`   | `fix/deadline-overflow`   |
+| Docs    | `docs/<short-description>`  | `docs/update-readme`      |
+| Chore   | `chore/<short-description>` | `chore/bump-deps`         |
 
 ## Workflow
 
@@ -38,22 +38,31 @@ Run these before pushing — CI enforces formatting (`cargo fmt --check --worksp
 ```bash
 cargo fmt --all
 cargo clippy --all-targets -- -D warnings
+BASE_REV=origin/main
+for manifest in contracts/escrow/Cargo.toml contracts/factory/Cargo.toml contracts/governance/Cargo.toml contracts/reputation/Cargo.toml; do
+   cargo semver-checks check-release --manifest-path "$manifest" --baseline-rev "$BASE_REV"
+done
 ```
+
+If a contract ABI changes in a breaking way, update the crate version according to SemVer before merging.
 
 ### Formatting Configuration
 
 The [`rustfmt.toml`](../rustfmt.toml) file at the repository root defines the project's formatting standards, including:
+
 - Edition 2021
 - 100-character line width
 - Module-level import granularity
 - Consistent trailing commas
 
 To format your code:
+
 ```bash
 cargo fmt --all
 ```
 
 To check formatting without making changes:
+
 ```bash
 cargo fmt --all -- --check
 ```
@@ -65,8 +74,23 @@ Before requesting review, confirm:
 - [ ] `cargo fmt --all` passes with no changes
 - [ ] `cargo clippy --all-targets -- -D warnings` passes
 - [ ] `cargo test -p escrow` passes
+- [ ] `cargo semver-checks` passes against `origin/main` for all contract crates
 - [ ] New behaviour is covered by tests
 - [ ] Relevant docs updated (if applicable)
+
+## Test Snapshots
+
+The escrow contract tests use Soroban's built-in snapshot system. Snapshots are stored in `contracts/escrow/test_snapshots/` and are checked in to the repository.
+
+CI runs tests with `SOROBAN_TEST_SNAPSHOT_UPDATE=0`, which causes the test suite to fail if any snapshot is stale or missing.
+
+**If your changes affect contract behaviour and snapshots need updating**, regenerate them locally:
+
+```bash
+SOROBAN_TEST_SNAPSHOT_UPDATE=1 cargo test -p escrow
+```
+
+Then commit the updated snapshot files alongside your code changes.
 
 ## Finding Something to Work On
 

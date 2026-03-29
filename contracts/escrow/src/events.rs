@@ -46,7 +46,7 @@ pub fn freelancer_transferred(env: &Env, old: &Address, new: &Address) {
     env.events().publish((Symbol::new(env, "freelancer_transferred"),), (old.clone(), new.clone()));
 }
 
-pub fn payer_transferred(env: &Env, old_payer: &Address, new_payer: &Address) {
+pub fn dispute_raised(env: Env, caller: Address) {
     env.events().publish(
         (Symbol::new(env, "payer_transferred"),),
         (old_payer.clone(), new_payer.clone())
@@ -73,7 +73,7 @@ pub fn yield_deposited(env: &Env, protocol: &Address, amount: i128) {
     env.events().publish((Symbol::new(env, "yield_deposited"),), (protocol.clone(), amount));
 }
 
-pub fn recurring_released(env: &Env, freelancer: &Address, amount: i128, release_num: u32) {
+pub fn payer_transferred(env: Env, old: Address, new: Address) {
     env.events().publish(
         (Symbol::new(env, "recurring_released"),),
         (freelancer.clone(), amount, release_num)
