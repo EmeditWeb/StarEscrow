@@ -1,116 +1,114 @@
-use soroban_sdk::{Address, Env, String, Symbol, Vec};
+use soroban_sdk::{symbol_short, Address, Env, String, Vec, symbol};
+use crate::storage::Milestone;
 
-use crate::storage;
-
-pub fn escrow_created(
-    env: &Env,
-    payer: &Address,
-    freelancer: &Address,
-    total_amount: &i128,
-    milestones: &Vec<storage::Milestone>,
-) {
+pub fn contract_paused(env: Env, admin: Address) {
     env.events().publish(
-        (Symbol::new(env, "escrow_created"),),
-        (payer.clone(), freelancer.clone(), total_amount.clone(), milestones.clone()),
+        (symbol_short!("admin"), symbol_short!("paused")),
+        admin
     );
 }
 
-pub fn milestone_submitted(
-    env: &Env,
-    freelancer: &Address,
-    idx: u32,
-    description: &String,
-) {
+pub fn contract_unpaused(env: Env, admin: Address) {
     env.events().publish(
-        (Symbol::new(env, "milestone_submitted"),),
-        (freelancer.clone(), idx, description.clone()),
+        (symbol_short!("admin"), symbol_short!("unpaused")),
+        admin
     );
 }
 
-pub fn milestone_approved(
-    env: &Env,
-    freelancer: &Address,
-    idx: u32,
-    description: &String,
-    amount: i128,
-) {
+pub fn escrow_created(env: Env, payer: Address, freelancer: Address, amount: i128, milestones: Vec<Milestone>) {
     env.events().publish(
-        (Symbol::new(env, "milestone_approved"),),
-        (freelancer.clone(), idx, description.clone(), amount),
+        (symbol_short!("escrow"), symbol_short!("created")),
+        (payer, freelancer, amount, milestones)
     );
 }
 
-pub fn work_submitted(env: &Env, freelancer: &Address) {
-    env.events()
-        .publish((Symbol::new(env, "work_submitted"),), (freelancer.clone(),));
-}
-
-pub fn payment_released(env: &Env, freelancer: &Address, amount: i128) {
+pub fn yield_deposited(env: Env, protocol: Address, amount: i128) {
     env.events().publish(
-        (Symbol::new(env, "payment_released"),),
-        (freelancer.clone(), amount),
+        (symbol_short!("yield"), symbol_short!("deposit")),
+        (protocol, amount)
     );
 }
 
-pub fn escrow_cancelled(env: &Env, payer: &Address, amount: i128) {
+pub fn milestone_submitted(env: Env, freelancer: Address, index: u32, description: String) {
     env.events().publish(
-        (Symbol::new(env, "escrow_cancelled"),),
-        (payer.clone(), amount),
+        (symbol_short!("escrow"), symbol_short!("submitted")),
+        (freelancer, index, description)
     );
 }
 
-pub fn escrow_expired(env: &Env, payer: &Address, amount: i128) {
+pub fn milestone_approved(env: Env, freelancer: Address, index: u32, description: String, amount: i128) {
     env.events().publish(
-        (Symbol::new(env, "escrow_expired"),),
-        (payer.clone(), amount),
+        (symbol_short!("escrow"), symbol_short!("approved")),
+        (freelancer, index, description, amount)
     );
 }
 
-pub fn freelancer_transferred(env: &Env, old: &Address, new: &Address) {
+pub fn payment_released(env: Env, freelancer: Address, amount: i128) {
     env.events().publish(
-        (Symbol::new(env, "freelancer_transferred"),),
-        (old.clone(), new.clone()),
+        (symbol_short!("escrow"), symbol_short!("released")),
+        (freelancer, amount)
     );
 }
 
-pub fn payer_transferred(env: &Env, old_payer: &Address, new_payer: &Address) {
+pub fn dispute_raised(env: Env, caller: Address) {
     env.events().publish(
-        (Symbol::new(env, "payer_transferred"),),
-        (old_payer.clone(), new_payer.clone()),
+        (symbol_short!("escrow"), symbol_short!("disputed")),
+        caller
     );
 }
 
-pub fn deadline_extended(env: &Env, old_deadline: u64, new_deadline: u64) {
+pub fn dispute_resolved(env: Env, release_to: Address) {
     env.events().publish(
-        (Symbol::new(env, "deadline_extended"),),
-        (old_deadline, new_deadline),
+        (symbol_short!("escrow"), symbol_short!("resolved")),
+        release_to
     );
 }
 
-pub fn contract_paused(env: &Env, admin: &Address) {
+pub fn recurring_released(env: Env, freelancer: Address, amount: i128, count: u32) {
     env.events().publish(
-        (Symbol::new(env, "contract_paused"),),
-        (admin.clone(),),
+        (symbol_short!("escrow"), symbol_short!("recurring")),
+        (freelancer, amount, count)
     );
 }
 
-pub fn contract_unpaused(env: &Env, admin: &Address) {
+pub fn escrow_cancelled(env: Env, payer: Address, amount: i128) {
     env.events().publish(
-        (Symbol::new(env, "contract_unpaused"),),
-        (admin.clone(),),
+        (symbol_short!("escrow"), symbol_short!("cancelled")),
+        (payer, amount)
     );
 }
 
-pub fn yield_deposited(env: &Env, protocol: &Address, amount: i128) {
+pub fn escrow_expired(env: Env, payer: Address, amount: i128) {
     env.events().publish(
-        (Symbol::new(env, "yield_deposited"),),
-        (protocol.clone(), amount),
+        (symbol_short!("escrow"), symbol_short!("expired")),
+        (payer, amount)
     );
 }
 
-pub fn recurring_released(env: &Env, freelancer: &Address, amount: i128, release_num: u32) {
+pub fn freelancer_transferred(env: Env, old: Address, new: Address) {
     env.events().publish(
-        (Symbol::new(env, "recurring_released"),),
-        (freelancer.clone(), amount, release_num),
+        (symbol_short!("freelanc"), symbol_short!("transfer")),
+        (old, new)
+    );
+}
+
+pub fn payer_transferred(env: Env, old: Address, new: Address) {
+    env.events().publish(
+        (symbol_short!("payer"), symbol_short!("transfer")),
+        (old, new)
+    );
+}
+
+pub fn deadline_extended(env: Env, old: u64, new: u64) {
+    env.events().publish(
+        (symbol_short!("deadline"), symbol_short!("extended")),
+        (old, new)
+    );
+}
+
+pub fn milestone_updated(env: Env, old: String, new: String) {
+    env.events().publish(
+        (symbol_short!("mileston"), symbol_short!("updated")),
+        (old, new)
     );
 }
