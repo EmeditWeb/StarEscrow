@@ -14,6 +14,9 @@ mod native_xdr;
 mod rpc;
 mod wasm_hash;
 mod xdr;
+mod conf;
+mod prompt;
+mod progress;
 
 /// StarEscrow CLI — interact with the escrow contract on Stellar Testnet.
 ///
@@ -52,6 +55,11 @@ struct Cli {
     /// outcome.
     #[arg(long, global = true)]
     dry_run: bool,
+
+    /// Skip all interactive confirmation prompts (auto-confirm).
+    /// Also implied when stdout is not a TTY.
+    #[arg(long, global = true)]
+    no_confirm: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -292,7 +300,7 @@ fn main() -> Result<()> {
     let as_json = cli.json;
     let dry_run = cli.dry_run;
 
-    let cfg = ConfigFile::load_default_or_explicit(cli.config.as_deref())?;
+    let cfg = conf::AppConfig::load(cli.config.as_deref())?;
 
     let (rpc_url, network_passphrase) = match &cli.network {
         Some(net) => {
@@ -467,10 +475,18 @@ fn main() -> Result<()> {
             }
         },
         Commands::Approve { contract_id, payer_secret } => {
+            if !prompt::confirm("Approve milestone and release payment to freelancer?", cli.no_confirm)? {
+                println!("Aborted.");
+                return Ok(());
+            }
             invoke_stellar_cli(&rpc_url, &network_passphrase, &contract_id, &payer_secret, "approve", &[])?;
             output(as_json, json!({"status":"ok","action":"approve"}), "Payment released to freelancer.");
         },
         Commands::Cancel { contract_id, payer_secret } => {
+            if !prompt::confirm("Cancel escrow and refund payer?", cli.no_confirm)? {
+                println!("Aborted.");
+                return Ok(());
+            }
             invoke_stellar_cli(&rpc_url, &network_passphrase, &contract_id, &payer_secret, "cancel", &[])?;
             output(as_json, json!({"status":"ok","action":"cancel"}), "Escrow cancelled. Funds refunded to payer.");
         },
