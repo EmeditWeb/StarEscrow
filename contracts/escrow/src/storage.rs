@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Env, String, Vec};
+use soroban_sdk::{ contracttype, Address, Env, String, Vec };
 
 /// Minimum ledgers before TTL extension kicks in (~1 day at 5s/ledger).
 pub const TTL_MIN_LEDGERS: u32 = 17_280;
@@ -7,9 +7,7 @@ pub const TTL_MAX_LEDGERS: u32 = 518_400;
 
 /// Extend the instance storage TTL so escrow data doesn't expire.
 pub fn extend_ttl(env: &Env) {
-    env.storage()
-        .instance()
-        .extend_ttl(TTL_MIN_LEDGERS, TTL_MAX_LEDGERS);
+    env.storage().instance().extend_ttl(TTL_MIN_LEDGERS, TTL_MAX_LEDGERS);
 }
 
 /// Unique identifier for an escrow.
@@ -26,6 +24,24 @@ pub enum EscrowStatus {
     Cancelled,
     Expired,
     Resolved,
+}
+
+/// All possible states for a milestone.
+#[contracttype]
+#[derive(Clone, PartialEq, Debug)]
+pub enum MilestoneStatus {
+    Pending,
+    Submitted,
+    Approved,
+}
+
+/// Individual milestone data.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct Milestone {
+    pub description: String,
+    pub amount: i128,
+    pub status: MilestoneStatus,
 }
 
 /// Recipient of accrued yield.
@@ -141,9 +157,7 @@ const DEFAULT_ESCROW_ID: EscrowId = 0;
 
 /// Persist the escrow record to instance storage, overwriting any previous value.
 pub fn save_escrow(env: &Env, data: &EscrowData) {
-    env.storage()
-        .instance()
-        .set(&DataKey::Escrow(DEFAULT_ESCROW_ID), data);
+    env.storage().instance().set(&DataKey::Escrow(DEFAULT_ESCROW_ID), data);
 }
 
 /// Load the escrow record from instance storage.
@@ -158,9 +172,7 @@ pub fn load_escrow(env: &Env) -> EscrowData {
 
 /// Returns `true` if an escrow record exists in instance storage.
 pub fn has_escrow(env: &Env) -> bool {
-    env.storage()
-        .instance()
-        .has(&DataKey::Escrow(DEFAULT_ESCROW_ID))
+    env.storage().instance().has(&DataKey::Escrow(DEFAULT_ESCROW_ID))
 }
 
 #[allow(dead_code)]
@@ -175,23 +187,19 @@ pub fn write_config(env: &Env, config: &RateLimitConfig) {
 
 #[allow(dead_code)]
 pub fn read_payer_stats(env: &Env, payer: &Address) -> Option<PayerStats> {
-    env.storage()
-        .instance()
-        .get(&RateKey::PayerStats(payer.clone()))
+    env.storage().instance().get(&RateKey::PayerStats(payer.clone()))
 }
 
 #[allow(dead_code)]
 pub fn write_payer_stats(env: &Env, payer: &Address, stats: &PayerStats) {
-    env.storage()
-        .instance()
-        .set(&RateKey::PayerStats(payer.clone()), stats);
+    env.storage().instance().set(&RateKey::PayerStats(payer.clone()), stats);
 }
 
 #[allow(dead_code)]
 pub fn check_and_update_rate_limit(
     env: &Env,
     payer: Address,
-    config: RateLimitConfig,
+    config: RateLimitConfig
 ) -> Result<(), ()> {
     let current_time = env.ledger().timestamp();
 
@@ -265,10 +273,7 @@ pub fn save_config(env: &Env, config: &ProtocolConfig) {
 }
 
 pub fn load_config(env: &Env) -> ProtocolConfig {
-    env.storage()
-        .instance()
-        .get(&DataKey::Config)
-        .expect("protocol not initialised")
+    env.storage().instance().get(&DataKey::Config).expect("protocol not initialised")
 }
 
 pub fn has_config(env: &Env) -> bool {
