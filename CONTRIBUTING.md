@@ -67,13 +67,33 @@ To check formatting without making changes:
 cargo fmt --all -- --check
 ```
 
+### Running Tests
+
+This project uses [cargo-nextest](https://nexte.st) for faster, more efficient test execution. To run all tests locally:
+
+```bash
+cargo nextest run
+```
+
+For testing a specific crate:
+
+```bash
+cargo nextest run -p escrow
+```
+
+To update test snapshots (Soroban tests):
+
+```bash
+SOROBAN_TEST_SNAPSHOT_UPDATE=1 cargo nextest run -p escrow
+```
+
 ## PR Checklist
 
 Before requesting review, confirm:
 
 - [ ] `cargo fmt --all` passes with no changes
 - [ ] `cargo clippy --all-targets -- -D warnings` passes
-- [ ] `cargo test -p escrow` passes
+- [ ] `cargo nextest run` passes
 - [ ] `cargo semver-checks` passes against `origin/main` for all contract crates
 - [ ] New behaviour is covered by tests
 - [ ] Relevant docs updated (if applicable)
@@ -87,7 +107,7 @@ CI runs tests with `SOROBAN_TEST_SNAPSHOT_UPDATE=0`, which causes the test suite
 **If your changes affect contract behaviour and snapshots need updating**, regenerate them locally:
 
 ```bash
-SOROBAN_TEST_SNAPSHOT_UPDATE=1 cargo test -p escrow
+SOROBAN_TEST_SNAPSHOT_UPDATE=1 cargo nextest run -p escrow
 ```
 
 Then commit the updated snapshot files alongside your code changes.

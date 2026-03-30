@@ -24,7 +24,10 @@ jobs:
       - name: Cargo fmt
         run: cargo fmt --check --workspace
 
-    - name: Cargo test
-      run: cargo test --workspace
-      env:
-        SOROBAN_TEST_SNAPSHOT_UPDATE: "0"
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+
+      - name: Cargo nextest
+        run: cargo nextest run --workspace
+        env:
+          SOROBAN_TEST_SNAPSHOT_UPDATE: "0"

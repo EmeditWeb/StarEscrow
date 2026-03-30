@@ -14,7 +14,7 @@ optimize: build
 release: optimize
 
 test:
-	cargo test
+	cargo nextest run
 
 lint:
 	cargo clippy --all-targets --all-features -- -D warnings
