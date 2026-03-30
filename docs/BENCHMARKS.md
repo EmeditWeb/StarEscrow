@@ -52,3 +52,44 @@ These thresholds are conservative starting points. Tighten them after establishi
 | After optimize  | Reported in CI `optimize-wasm` job summary |
 
 The `optimize-wasm` job writes a before/after byte table to the GitHub Actions step summary and uploads `escrow.optimized.wasm` as an artifact.
+
+## WASM Bloat Analysis
+
+Run `cargo bloat` to identify which functions contribute most to binary size:
+
+```bash
+# Install once
+cargo install cargo-bloat
+
+# Analyse the escrow contract (release profile)
+cargo bloat -p escrow --release --crates
+cargo bloat -p escrow --release -n 10
+```
+
+### Top 10 Size Contributors
+
+> Last measured: _run the commands above to update_
+
+| # | Function / Section | Size (bytes) | % of total |
+|---|---|---|---|
+| 1 | TBD | TBD | TBD |
+| 2 | TBD | TBD | TBD |
+| 3 | TBD | TBD | TBD |
+| 4 | TBD | TBD | TBD |
+| 5 | TBD | TBD | TBD |
+| 6 | TBD | TBD | TBD |
+| 7 | TBD | TBD | TBD |
+| 8 | TBD | TBD | TBD |
+| 9 | TBD | TBD | TBD |
+| 10 | TBD | TBD | TBD |
+
+### Optimization Opportunities
+
+Common contributors in Soroban contracts and how to address them:
+
+- `soroban_sdk` serialization/deserialization — unavoidable for on-chain types; minimize the number of distinct `#[contracttype]` structs.
+- `core::fmt` / panic infrastructure — use `#![no_std]` (already applied) and avoid `unwrap`/`expect` in hot paths; prefer `?` with typed errors.
+- Large match arms in `contractimpl` — split rarely-used entry points into a separate contract if WASM size becomes a concern.
+- Unused generic monomorphisations — audit `Vec<T>` and `Map<K,V>` usage; each unique type combination generates separate code.
+
+Run `cargo bloat -p escrow --release -n 10` after any significant feature addition and update the table above.
